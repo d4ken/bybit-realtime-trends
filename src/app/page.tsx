@@ -1,95 +1,93 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+"use client";
 
-export default function Home() {
+import React, { useEffect, useState } from "react";
+import { TickerData } from "types/Ticker";
+import RankingData from "../listing.json";
+import { CryptoInfo } from "@/components/CryptoInfo";
+let CMC_CRYPTO_AMOUNT: number;
+CMC_CRYPTO_AMOUNT = 10;
+
+const Home = () => {
+  let tickerArray = new Array<TickerData>(CMC_CRYPTO_AMOUNT);
+  for (let i = 0; i < CMC_CRYPTO_AMOUNT; i++) {
+    tickerArray[i] = {
+      symbol: "",
+      lastPrice: 0,
+    };
+  }
+  const [ticker, setTicker] = useState<TickerData[]>(tickerArray);
+  useEffect(() => {
+    // cmc crypto listing json data reader
+    let coinSymbolList: string[] = [];
+
+    for (const key in RankingData) {
+      if (key === "data") {
+        for (const val of RankingData[key]) {
+          if (val.symbol !== "USDT") coinSymbolList.push(val.symbol);
+        }
+      }
+    }
+
+    let coinPairs = coinSymbolList
+      .filter((val, index) => {
+        if (index < CMC_CRYPTO_AMOUNT) return val;
+      })
+      .map((val) => {
+        return `${val}USDT`;
+      });
+
+    let coinTickerNames = coinPairs.map((val) => {
+      return `tickers.${val}`;
+    });
+
+    const endpoint = "wss://stream.bybit.com/v5/public/spot";
+    const ws = new WebSocket(endpoint);
+    const apiCall = { op: "subscribe", args: coinTickerNames };
+
+    ws.onopen = () => {
+      console.log('"open" event!');
+      console.log("WebSocket Client Connected");
+      setInterval(() => {}, 3000);
+      ws.send(JSON.stringify(apiCall));
+    };
+
+    //  購読した値を取得
+    ws.onmessage = (event) => {
+      const json = JSON.parse(event.data);
+      try {
+        if (json.data !== undefined) {
+          coinPairs.forEach((val, index) => {
+            if (json.data.symbol === val) {
+              let lastPrice = Number(json.data.lastPrice);
+              const tmp = [...tickerArray];
+              tmp[index].symbol = json.data.symbol;
+              tmp[index].lastPrice = lastPrice;
+              setTicker(() => tmp);
+            }
+          });
+        }
+      } catch (err) {
+        console.log(err);
+      }
+    };
+  }, []);
+
+  const showTickers = () => {
+    return ticker.map((item, index) => (
+      <div key={index}>
+        <h2>{index + 1}</h2>
+        <CryptoInfo symbol={item.symbol} lastPrice={item.lastPrice} />
+      </div>
+    ));
+  };
+
   return (
-    <main className={styles.main}>
-      <div className={styles.description}>
-        <p>
-          Get started by editing&nbsp;
-          <code className={styles.code}>src/app/page.tsx</code>
-        </p>
-        <div>
-          <a
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className={styles.vercelLogo}
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
-        </div>
-      </div>
-
-      <div className={styles.center}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className={styles.grid}>
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Docs <span>-&gt;</span>
-          </h2>
-          <p>Find in-depth information about Next.js features and API.</p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Learn <span>-&gt;</span>
-          </h2>
-          <p>Learn about Next.js in an interactive course with&nbsp;quizzes!</p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Templates <span>-&gt;</span>
-          </h2>
-          <p>Explore starter templates for Next.js.</p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Deploy <span>-&gt;</span>
-          </h2>
-          <p>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
+    <main>
+      <div>
+        <ul>{showTickers()}</ul>
       </div>
     </main>
   );
-}
+};
+
+export default Home;
